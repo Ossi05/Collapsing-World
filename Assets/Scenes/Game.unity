@@ -170,6 +170,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   collectedText: {fileID: 22931458}
+  showOnlyWhenGamePlaying: 0
 --- !u!114 &22931458
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1176,6 +1177,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   collectedText: {fileID: 1952955226}
+  showOnlyWhenGamePlaying: 1
 --- !u!1 &804593268
 GameObject:
   m_ObjectHideFlags: 0
@@ -1752,6 +1754,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   collectedText: {fileID: 1162574870}
+  showOnlyWhenGamePlaying: 0
 --- !u!1001 &1205106246
 PrefabInstance:
   m_ObjectHideFlags: 0

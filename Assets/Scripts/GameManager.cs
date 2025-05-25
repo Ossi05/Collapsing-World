@@ -148,6 +148,7 @@ public class GameManager : MonoBehaviour {
 
     public void TogglePauseGame()
     {
+        if (IsGameOver()) { return; }
         isGamePaused = !isGamePaused;
 
         if (isGamePaused)

@@ -9,6 +9,8 @@ public class CollectedUI : MonoBehaviour {
     {
         GameManager.Instance.OnStateChanged += GameManager_OnStateChanged;
         CollectableManager.Instance.OnCollected += CollectableManager_OnCollected;
+        if (!showOnlyWhenGamePlaying) { return; }
+
         Hide();
     }
 
