@@ -1,0 +1,33 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 544ed52d168167c42aa280cc76050b60, type: 3}
+  m_Name: AudioClipsSO
+  m_EditorClassIdentifier: 
+  playerRollSound: {fileID: 8300000, guid: 368e7b26b549ae34ea97eab674e937c1, type: 3}
+  playerRollVolume: 0.8
+  playerDeathSound: {fileID: 8300000, guid: 38f477514dce00e438a8947a02b3f286, type: 3}
+  playerDeathVolume: 1
+  gridPreDestroySound: {fileID: 8300000, guid: c4c1f82ad4b34294eb47aac20d822d48, type: 3}
+  gridPreDestroyVolume: 0.1
+  gridDestroySound: {fileID: 8300000, guid: 52bc6bcdcde8bac4e9f09c8ce84b5b45, type: 3}
+  gridDestroyVolume: 1
+  collectSounds:
+  - {fileID: 8300000, guid: 1cc68576e4576614087a3342244f17ae, type: 3}
+  - {fileID: 8300000, guid: b0e7042616664624daf8bb8731f99aaa, type: 3}
+  - {fileID: 8300000, guid: b2a8c15982616254ea2819c00765893e, type: 3}
+  collectVolume: 1
+  gameOverSound: {fileID: 8300000, guid: 38f477514dce00e438a8947a02b3f286, type: 3}
+  gameOverVolume: 1
+  gameStartSound: {fileID: 0}
+  gameStartVolume: 1
+  victorySound: {fileID: 8300000, guid: a0c8d0397cb887147977a5555aa03dde, type: 3}
+  victoryVolume: 1
