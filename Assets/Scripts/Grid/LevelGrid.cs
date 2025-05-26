@@ -81,29 +81,23 @@ public class LevelGrid : MonoBehaviour {
             UnityEngine.Random.Range(0, gridSystem.GetWidth()),
             UnityEngine.Random.Range(0, gridSystem.GetHeight())
         );
+        Debug.Log(maxSafePathLenght);
         GenerateSafePath(startPosition, maxSafePathLenght);
         if (!allowDebug) { return; }
         gridSystem.CreateDebugObjects(gridDebugObjectPrefab);
     }
 
-    void GenerateSafePath(GridPosition startPosition, int maxLength, bool setAllPositionsSafe = false)
+    void GenerateSafePath(GridPosition startPosition, int maxLength)
     {
+        List<GridPosition> newSafeGridPositionsList = new List<GridPosition>();
 
-        if (setAllPositionsSafe) // Set all positions safe
+        if (!IsValidGridPosition(startPosition) || gridSystem.GetGridObject(startPosition).IsDestroyed())
         {
-            List<GridPosition> gridPositions = new List<GridPosition>(gridSystem.GetNotDestroyedPositions());
-            for (int i = 0; i < gridPositions.Count; i++)
-            {
-                GridObject gridObject = gridSystem.GetGridObject(gridPositions[i]);
-                gridObject.SetIsSafe(true);
-            }
-
-            safeGridPositionsList = gridPositions;
+            Debug.Log("GenerateSafePath aborted: Invalid or destroyed start position.");
+            ReplaceSafeGridPositionsList(newSafeGridPositionsList);
             return;
         }
 
-
-        List<GridPosition> newSafeGridPositionsList = new List<GridPosition>();
         gridSystem.GetGridObject(startPosition).SetIsSafe(true);
         newSafeGridPositionsList.Add(startPosition);
 
@@ -114,33 +108,50 @@ public class LevelGrid : MonoBehaviour {
         new(1, 0), new(-1, 0)
         };
 
-        Dictionary<GridPosition, GridPosition?> parentMap = new(); // To track direction and avoid line repetition
+        Dictionary<GridPosition, GridPosition?> parentMap = new();
         parentMap[startPosition] = null;
 
         int steps = 0;
         var rnd = new System.Random();
 
-        int noGrowthCounter = 0; // Track if any new positions were added
+        int availablePositions = gridSystem.GetNotDestroyedPositions().Count;
+        int effectiveMaxLength = Mathf.Min(maxLength, availablePositions);
 
-        while (steps < maxLength && frontier.Count > 0)
+        int maxLoopIterations = 10000;
+        int loopCounter = 0;
+
+        bool constraintsRelaxed = false;
+
+        while (steps < effectiveMaxLength && frontier.Count > 0 && loopCounter < maxLoopIterations)
         {
+            loopCounter++;
+
+            if (loopCounter >= maxLoopIterations)
+            {
+                Debug.LogError("GenerateSafePath terminated due to max loop iterations. Potential logic issue.");
+                break;
+            }
+
             frontier = frontier.OrderBy(_ => rnd.Next()).ToList();
             List<GridPosition> newFrontier = new List<GridPosition>();
             int activeFrontierCount = Mathf.CeilToInt(frontier.Count * 0.7f);
+            activeFrontierCount = Mathf.Clamp(activeFrontierCount, 0, frontier.Count);
 
-            for (int i = 0; i < activeFrontierCount && steps < maxLength; i++)
+            int positionsAddedThisLoop = 0;
+
+            for (int i = 0; i < activeFrontierCount && steps < effectiveMaxLength; i++)
             {
                 GridPosition origin = frontier[i];
                 GridPosition? parent = parentMap.ContainsKey(origin) ? parentMap[origin] : null;
 
-                int baseBranches = (steps < maxLength * 0.3f) ? 3 : 2;
+                int baseBranches = (steps < effectiveMaxLength * 0.3f) ? 3 : 2;
                 int branches = rnd.Next(2, baseBranches + 2);
                 GridPosition[] dirs = directions.OrderBy(_ => rnd.Next()).ToArray();
                 int b = 0;
 
                 foreach (GridPosition dir in dirs)
                 {
-                    if (b >= branches || steps >= maxLength)
+                    if (b >= branches || steps >= effectiveMaxLength)
                         break;
 
                     GridPosition next = new GridPosition(origin.x + dir.x, origin.z + dir.z);
@@ -152,31 +163,31 @@ public class LevelGrid : MonoBehaviour {
                     if (gridObject.IsDestroyed() || gridObject.IsBeingDestroyed())
                         continue;
 
-                    // Reduce straight-line repetition
-                    if (parent.HasValue)
+                    if (!constraintsRelaxed && parent.HasValue)
                     {
                         GridPosition prevDir = new GridPosition(origin.x - parent.Value.x, origin.z - parent.Value.z);
                         if (prevDir.x == dir.x && prevDir.z == dir.z && rnd.NextDouble() < 0.6)
                             continue;
                     }
 
-                    // Loosen skip chance early
-                    double skipChance = steps < maxLength * 0.2f ? 0.05 : Mathf.Lerp(0.05f, 0.35f, steps / (float)maxLength);
-                    if (rnd.NextDouble() < skipChance)
-                        continue;
-
-                    // Relax adjacency check early on
-                    int adjacentSafeCount = 0;
-                    foreach (GridPosition d2 in directions)
+                    if (!constraintsRelaxed)
                     {
-                        GridPosition neighbor = new GridPosition(next.x + d2.x, next.z + d2.z);
-                        if (newSafeGridPositionsList.Contains(neighbor))
-                            adjacentSafeCount++;
+                        double skipChance = steps < effectiveMaxLength * 0.2f ? 0.05 : Mathf.Lerp(0.05f, 0.35f, steps / (float)effectiveMaxLength);
+                        if (rnd.NextDouble() < skipChance)
+                            continue;
+
+                        int adjacentSafeCount = 0;
+                        foreach (GridPosition d2 in directions)
+                        {
+                            GridPosition neighbor = new GridPosition(next.x + d2.x, next.z + d2.z);
+                            if (newSafeGridPositionsList.Contains(neighbor))
+                                adjacentSafeCount++;
+                        }
+                        if (steps < effectiveMaxLength * 0.3f && adjacentSafeCount > 2)
+                            continue;
+                        else if (adjacentSafeCount > 1)
+                            continue;
                     }
-                    if (steps < maxLength * 0.3f && adjacentSafeCount > 2)
-                        continue;
-                    else if (adjacentSafeCount > 1)
-                        continue;
 
                     newSafeGridPositionsList.Add(next);
                     newFrontier.Add(next);
@@ -184,49 +195,26 @@ public class LevelGrid : MonoBehaviour {
                     parentMap[next] = origin;
                     steps++;
                     b++;
+                    positionsAddedThisLoop++;
                 }
             }
 
-            // Fallback if no growth this round
-            if (newFrontier.Count == 0 && steps < maxLength)
+            if (positionsAddedThisLoop == 0)
             {
-                var backup = newSafeGridPositionsList
-                    .OrderBy(_ => rnd.Next())
-                    .FirstOrDefault(p => !frontier.Contains(p));
-
-                if (IsValidGridPosition(backup) && !frontier.Contains(backup))
+                if (!constraintsRelaxed)
                 {
-                    frontier.Add(backup);
+                    Debug.Log("Constraints too strict — relaxing constraints to prevent infinite loop.");
+                    constraintsRelaxed = true;
                 }
-
-                noGrowthCounter++;
-                if (noGrowthCounter >= 3)
+                else
                 {
-                    // Force expansion
-                    var forced = newSafeGridPositionsList
-                        .OrderBy(_ => rnd.Next())
-                        .Take(2)
-                        .Where(p => !frontier.Contains(p))
-                        .ToList();
-
-                    frontier.AddRange(forced);
-                    noGrowthCounter = 0;
+                    Debug.Log("Path generation halted: no more positions could be added even with relaxed constraints.");
+                    break;
                 }
             }
-            else
-            {
-                noGrowthCounter = 0;
-            }
 
-            List<GridPosition> carry = frontier
-                .Skip(activeFrontierCount)
-                .OrderBy(_ => rnd.Next())
-                .Take(rnd.Next(1, newFrontier.Count / 2 + 2))
-                .ToList();
-
-            frontier = newFrontier.Concat(carry).Distinct().ToList();
+            frontier = newFrontier;
         }
-
 
         ReplaceSafeGridPositionsList(newSafeGridPositionsList);
     }
@@ -262,7 +250,7 @@ public class LevelGrid : MonoBehaviour {
                 GridPosition pos = new GridPosition(x, z);
                 GridObject gridObject = gridSystem.GetGridObject(pos);
                 if (gridObject.IsDestroyed() || gridObject.IsBeingDestroyed()) { continue; }
-                if (!destroyAllPositions && gridObject.IsSafe() && safeGridPositionsList.Count > minSafePathToDestroyAll)
+                if (!destroyAllPositions && gridObject.IsSafe())
                 {
                     continue;
                 }
@@ -292,18 +280,20 @@ public class LevelGrid : MonoBehaviour {
             yield return new WaitForSeconds(delay);
         }
         yield return new WaitForSeconds(destructionDelay);
+        if (destroyAllPositions) { yield break; }
+
         // ALL DESTROYED. FIND NEW GRIDPOSITIONS TO DESTROY
         int newSafePathMaxLength = Mathf.RoundToInt(safeGridPositionsList.Count / 2);
         int availablePositions = gridSystem.GetNotDestroyedPositions().Count;
 
-        if (newSafePathMaxLength >= minSafePathToDestroyAll && newSafePathMaxLength >= availablePositions)
+        if (newSafePathMaxLength >= availablePositions && newSafePathMaxLength > minSafePathToDestroyAll)
         {
             GenerateSafePath(Player.Instance.GetGridPosition(), newSafePathMaxLength);
         }
         else
         {
             destroyAllPositions = true;
-            GenerateSafePath(Player.Instance.GetGridPosition(), 0, true); // Make all positions safe
+            GenerateSafePath(Player.Instance.GetGridPosition(), availablePositions);
         }
 
         List<GridPosition> newDestroyableGridPositions = GetDestroyableGridPositions();
@@ -355,14 +345,19 @@ public class LevelGrid : MonoBehaviour {
         return safeGridPositionsList.Count > 0;
     }
 
-    public GridPosition GetRandomSafeGridPosition()
+    public GridPosition? GetRandomSafeGridPosition()
     {
+        if (!IsSafePositionsAvailable()) { return null; }
         return safeGridPositionsList[UnityEngine.Random.Range(0, safeGridPositionsList.Count)];
     }
     void HandleGridDestroy(GridPosition gridPosition)
     {
         GridObject gridObject = gridSystem.GetGridObject(gridPosition);
         gridObject.SetIsBeingDestroyed();
+        if (gridObject.IsSafe())
+        {
+            safeGridPositionsList.Remove(gridPosition);
+        }
         gridObject.SetIsSafe(false);
         OnGridPreDestroy?.Invoke(this, gridPosition);
         StartCoroutine(DestroyGridPosition(gridPosition));

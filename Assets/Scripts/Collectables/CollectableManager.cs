@@ -46,9 +46,16 @@ public class CollectableManager : MonoBehaviour {
 
     GridPosition? GetRandomSpawnGridPosition()
     {
-        GridPosition spawnGridPosition;
+        GridPosition? spawnGridPosition;
+        int maxTries = 1000;
+        int tries = 0;
         do
         {
+            tries++;
+            if (tries == maxTries)
+            {
+                Debug.LogWarning("MAX TRIES REACHED");
+            }
             spawnGridPosition = LevelGrid.Instance.GetRandomSafeGridPosition();
 
             if (!IsSpawnAllowed())
@@ -56,9 +63,9 @@ public class CollectableManager : MonoBehaviour {
                 return null;
             }
         }
-        while (
-            spawnGridPosition == Player.Instance.GetGridPosition() ||
-            LevelGrid.Instance.IsGridPositionDestroyed(spawnGridPosition));
+        while (tries < maxTries &&
+            (spawnGridPosition == Player.Instance.GetGridPosition() || (spawnGridPosition != null &&
+            LevelGrid.Instance.IsGridPositionDestroyed(spawnGridPosition.Value))));
         return spawnGridPosition;
     }
 
@@ -78,8 +85,6 @@ public class CollectableManager : MonoBehaviour {
 
     public void SpawnCollectables()
     {
-        Debug.Log(IsSpawnAllowed());
-
         if (!IsSpawnAllowed())
             return;
 

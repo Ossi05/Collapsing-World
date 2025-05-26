@@ -45,6 +45,7 @@ public class GameManager : MonoBehaviour {
         Player.Instance.OnPlayerDeath += Player_OnPlayerDeath;
         Player.Instance.SetStartingGridPosition(playerInitialGridPosition);
         PlayerControls.Instance.OnPauseAction += PlayerControls_OnPauseAction;
+        //   CollectableManager.Instance.OnAllCollected += CollectableManager_OnAllCollected;
     }
 
     private void PlayerControls_OnPauseAction(object sender, EventArgs e)
@@ -55,7 +56,6 @@ public class GameManager : MonoBehaviour {
     void GridSystemVisual_OnGridVisualCreated(object sender, EventArgs e)
     {
         Player.Instance.MoveToGridPosition(startGamePosition);
-        CollectableManager.Instance.OnAllCollected += CollectableManager_OnAllCollected;
         ChangeState(State.LoadingPlayer);
     }
 
