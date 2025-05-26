@@ -45,7 +45,7 @@ public class GameManager : MonoBehaviour {
         Player.Instance.OnPlayerDeath += Player_OnPlayerDeath;
         Player.Instance.SetStartingGridPosition(playerInitialGridPosition);
         PlayerControls.Instance.OnPauseAction += PlayerControls_OnPauseAction;
-        //   CollectableManager.Instance.OnAllCollected += CollectableManager_OnAllCollected;
+        CollectableManager.Instance.OnAllCollected += CollectableManager_OnAllCollected;
     }
 
     private void PlayerControls_OnPauseAction(object sender, EventArgs e)
