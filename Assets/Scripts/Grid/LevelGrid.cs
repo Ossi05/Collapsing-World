@@ -55,7 +55,9 @@ public class LevelGrid : MonoBehaviour {
     {
         if (GameManager.Instance.IsGamePlaying())
         {
-            destroyGridCoroutine = StartCoroutine(DestroyGridObjectsRandomly(GetDestroyableGridPositions()));
+            List<GridPosition> destroyableGridPositions = GetDestroyableGridPositions();
+            if (destroyableGridPositions.Count == 0) return;
+            destroyGridCoroutine = StartCoroutine(DestroyGridObjectsRandomly(destroyableGridPositions));
         }
         if (GameManager.Instance.IsGameOver())
         {
@@ -276,11 +278,13 @@ public class LevelGrid : MonoBehaviour {
         }
         // All destroyed
         int newSafePathMaxLength = Mathf.RoundToInt(safeGridPositionsList.Count / 2);
-        if (IsSafePositionsAvailable() && newSafePathMaxLength > minSafePathToDestroyAll)
+        if (newSafePathMaxLength > minSafePathToDestroyAll)
         {
             GenerateSafePath(Player.Instance.GetGridPosition(), newSafePathMaxLength); // Generate new safePath
         }
-        yield return DestroyGridObjectsRandomly(GetDestroyableGridPositions()); // Get new DestroyableGridPositions
+        List<GridPosition> destroyableGridPositions = GetDestroyableGridPositions();
+        if (destroyableGridPositions.Count == 0) yield break;
+        yield return DestroyGridObjectsRandomly(destroyableGridPositions); // Get new DestroyableGridPositions
 
     }
 
