@@ -24,9 +24,6 @@ public class AudioClipsSO : ScriptableObject {
     public AudioClip gameOverSound;
     [Range(0f, 1f)] public float gameOverVolume = 1f;
     [Space]
-    public AudioClip gameStartSound;
-    [Range(0f, 1f)] public float gameStartVolume = 1f;
-    [Space]
     public AudioClip victorySound;
     [Range(0f, 1f)] public float victoryVolume = 1f;
 

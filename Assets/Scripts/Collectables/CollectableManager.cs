@@ -44,40 +44,78 @@ public class CollectableManager : MonoBehaviour {
 
     }
 
-    void SpawnCollectables()
+    GridPosition? GetRandomSpawnGridPosition()
     {
+        GridPosition spawnGridPosition;
+        do
+        {
+            spawnGridPosition = LevelGrid.Instance.GetRandomSafeGridPosition();
+
+            if (!IsSpawnAllowed())
+            {
+                return null;
+            }
+        }
+        while (
+            spawnGridPosition == Player.Instance.GetGridPosition() ||
+            LevelGrid.Instance.IsGridPositionDestroyed(spawnGridPosition));
+        return spawnGridPosition;
+    }
+
+    bool IsSpawnAllowed()
+    {
+        return LevelGrid.Instance.IsSafePositionsAvailable() && !GameManager.Instance.IsGameOver();
+    }
+
+    private void SpawnCollectableAtPosition(Collectable collectable, GridPosition position)
+    {
+        if (position == null) { return; }
+
+        collectable.transform.position = LevelGrid.Instance.GetWorldPosition(position);
+        LevelGrid.Instance.AddGridObjectAtGridPosition(position, collectable);
+        collectable.Show();
+    }
+
+    public void SpawnCollectables()
+    {
+        Debug.Log(IsSpawnAllowed());
+
+        if (!IsSpawnAllowed())
+            return;
+
         for (int i = 0; i < spawnAmt; i++)
         {
-            if (!LevelGrid.Instance.IsSafePositionsAvailable()) { return; }
+            GridPosition? nullablePosition = GetRandomSpawnGridPosition();
 
-            GridPosition spawnGridPosition = GetRandomSpawnGridPosition();
-            while (spawnGridPosition == Player.Instance.GetGridPosition())
+            if (nullablePosition == null)
             {
-                if (!LevelGrid.Instance.IsSafePositionsAvailable() || GameManager.Instance.IsGameOver()) { return; }
-
-                spawnGridPosition = GetRandomSpawnGridPosition();
+                return;
             }
-            GameObject collectableGameobject = Instantiate(collectablePrefab, LevelGrid.Instance.GetWorldPosition(spawnGridPosition), Quaternion.identity);
+
+            GridPosition spawnGridPosition = nullablePosition.Value;
+            GameObject collectableGameobject = Instantiate(collectablePrefab, Vector3.zero, Quaternion.identity);
             Collectable collectable = collectableGameobject.GetComponent<Collectable>();
             collectable.OnCollected += Collectable_OnCollected;
             collectable.OnPickUpFailed += Collectable_OnPickUpFailed;
-            LevelGrid.Instance.AddGridObjectAtGridPosition(spawnGridPosition, collectable);
-            collectable.Show();
-        }
-    }
 
-    GridPosition GetRandomSpawnGridPosition()
-    {
-        return LevelGrid.Instance.GetRandomSafeGridPosition();
+            SpawnCollectableAtPosition(collectable, spawnGridPosition);
+        }
     }
 
     IEnumerator DelaySpawn(Collectable collectable)
     {
         yield return new WaitForSeconds(spawnDelay);
-        GridPosition spawnGridPosition = GetRandomSpawnGridPosition();
-        collectable.transform.position = LevelGrid.Instance.GetWorldPosition(spawnGridPosition);
-        LevelGrid.Instance.AddGridObjectAtGridPosition(spawnGridPosition, collectable);
-        collectable.Show();
+
+        if (!IsSpawnAllowed())
+            yield break;
+
+        GridPosition? nullablePosition = GetRandomSpawnGridPosition();
+        if (nullablePosition == null)
+        {
+            yield break;
+        }
+        GridPosition spawnGridPosition = nullablePosition.Value;
+        SpawnCollectableAtPosition(collectable, spawnGridPosition);
     }
 
     void SpawnCollectable(Collectable collectable)

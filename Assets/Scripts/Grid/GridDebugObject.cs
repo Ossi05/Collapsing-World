@@ -14,11 +14,11 @@ public class GridDebugObject : MonoBehaviour {
     void Update()
     {
         textMeshPro.text = gridObject.ToString();
-        if (gridObject.GetIsDestroyed())
+        if (gridObject.IsDestroyed())
         {
             textMeshPro.color = Color.red;
         }
-        if (gridObject.GetIsSafe())
+        if (gridObject.IsSafe())
         {
             textMeshPro.color = Color.green;
         }

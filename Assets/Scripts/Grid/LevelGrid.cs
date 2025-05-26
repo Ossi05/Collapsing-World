@@ -27,6 +27,9 @@ public class LevelGrid : MonoBehaviour {
     List<GridPosition> safeGridPositionsList = new List<GridPosition>();
 
     Coroutine destroyGridCoroutine;
+
+    bool destroyAllPositions = false;
+
     void Awake()
     {
         Instance = this;
@@ -83,8 +86,23 @@ public class LevelGrid : MonoBehaviour {
         gridSystem.CreateDebugObjects(gridDebugObjectPrefab);
     }
 
-    void GenerateSafePath(GridPosition startPosition, int maxLength)
+    void GenerateSafePath(GridPosition startPosition, int maxLength, bool setAllPositionsSafe = false)
     {
+
+        if (setAllPositionsSafe) // Set all positions safe
+        {
+            List<GridPosition> gridPositions = new List<GridPosition>(gridSystem.GetNotDestroyedPositions());
+            for (int i = 0; i < gridPositions.Count; i++)
+            {
+                GridObject gridObject = gridSystem.GetGridObject(gridPositions[i]);
+                gridObject.SetIsSafe(true);
+            }
+
+            safeGridPositionsList = gridPositions;
+            return;
+        }
+
+
         List<GridPosition> newSafeGridPositionsList = new List<GridPosition>();
         gridSystem.GetGridObject(startPosition).SetIsSafe(true);
         newSafeGridPositionsList.Add(startPosition);
@@ -130,8 +148,8 @@ public class LevelGrid : MonoBehaviour {
                     if (!IsValidGridPosition(next) || newSafeGridPositionsList.Contains(next))
                         continue;
 
-                    GridObject obj = gridSystem.GetGridObject(next);
-                    if (obj.GetIsDestroyed())
+                    GridObject gridObject = gridSystem.GetGridObject(next);
+                    if (gridObject.IsDestroyed() || gridObject.IsBeingDestroyed())
                         continue;
 
                     // Reduce straight-line repetition
@@ -162,7 +180,7 @@ public class LevelGrid : MonoBehaviour {
 
                     newSafeGridPositionsList.Add(next);
                     newFrontier.Add(next);
-                    obj.SetIsSafe(true);
+                    gridObject.SetIsSafe(true);
                     parentMap[next] = origin;
                     steps++;
                     b++;
@@ -176,7 +194,7 @@ public class LevelGrid : MonoBehaviour {
                     .OrderBy(_ => rnd.Next())
                     .FirstOrDefault(p => !frontier.Contains(p));
 
-                if (IsValidGridPosition(backup))
+                if (IsValidGridPosition(backup) && !frontier.Contains(backup))
                 {
                     frontier.Add(backup);
                 }
@@ -243,8 +261,8 @@ public class LevelGrid : MonoBehaviour {
             {
                 GridPosition pos = new GridPosition(x, z);
                 GridObject gridObject = gridSystem.GetGridObject(pos);
-                if (gridObject.GetIsDestroyed()) { continue; }
-                if (gridObject.GetIsSafe() && safeGridPositionsList.Count > minSafePathToDestroyAll)
+                if (gridObject.IsDestroyed() || gridObject.IsBeingDestroyed()) { continue; }
+                if (!destroyAllPositions && gridObject.IsSafe() && safeGridPositionsList.Count > minSafePathToDestroyAll)
                 {
                     continue;
                 }
@@ -258,15 +276,12 @@ public class LevelGrid : MonoBehaviour {
     {
         if (destroyablePositions == null || destroyablePositions.Count == 0)
         {
-            Debug.LogWarning("No destroyable positions left. Stopping destruction.");
+            Debug.Log("No destroyable positions left. Stopping destruction.");
             yield break;
         }
 
         yield return new WaitForSeconds(startDestroyingDelay);
 
-        int width = gridSystem.GetWidth();
-        int height = gridSystem.GetHeight();
-        // Shuffle the list for random destruction
         destroyablePositions = destroyablePositions.OrderBy(p => UnityEngine.Random.value).ToList();
 
         for (int i = 0; i < destroyablePositions.Count; i++)
@@ -276,18 +291,24 @@ public class LevelGrid : MonoBehaviour {
             float delay = UnityEngine.Random.Range(minIntervalBetweenDestructions, maxIntervalBetweenDestructions);
             yield return new WaitForSeconds(delay);
         }
-        // All destroyed
+        yield return new WaitForSeconds(destructionDelay);
+        // ALL DESTROYED. FIND NEW GRIDPOSITIONS TO DESTROY
         int newSafePathMaxLength = Mathf.RoundToInt(safeGridPositionsList.Count / 2);
-        if (newSafePathMaxLength > minSafePathToDestroyAll)
+        int availablePositions = gridSystem.GetNotDestroyedPositions().Count;
+
+        if (newSafePathMaxLength >= minSafePathToDestroyAll && newSafePathMaxLength >= availablePositions)
         {
-            GenerateSafePath(Player.Instance.GetGridPosition(), newSafePathMaxLength); // Generate new safePath
+            GenerateSafePath(Player.Instance.GetGridPosition(), newSafePathMaxLength);
         }
-        List<GridPosition> destroyableGridPositions = GetDestroyableGridPositions();
-        if (destroyableGridPositions.Count == 0) yield break;
-        yield return DestroyGridObjectsRandomly(destroyableGridPositions); // Get new DestroyableGridPositions
+        else
+        {
+            destroyAllPositions = true;
+            GenerateSafePath(Player.Instance.GetGridPosition(), 0, true); // Make all positions safe
+        }
 
+        List<GridPosition> newDestroyableGridPositions = GetDestroyableGridPositions();
+        yield return DestroyGridObjectsRandomly(newDestroyableGridPositions);
     }
-
 
 
     public Vector3 GetWorldPosition(GridPosition gridPosition) => gridSystem.GetWorldPosition(gridPosition);
@@ -341,6 +362,7 @@ public class LevelGrid : MonoBehaviour {
     void HandleGridDestroy(GridPosition gridPosition)
     {
         GridObject gridObject = gridSystem.GetGridObject(gridPosition);
+        gridObject.SetIsBeingDestroyed();
         gridObject.SetIsSafe(false);
         OnGridPreDestroy?.Invoke(this, gridPosition);
         StartCoroutine(DestroyGridPosition(gridPosition));

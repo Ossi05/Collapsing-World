@@ -3,8 +3,15 @@ using System.Collections.Generic;
 public class GridObject {
     GridPosition gridPosition;
     List<BaseGridItem> gridItemsList;
-    bool isDestroyed;
+    DestroyState destroyState;
+
     bool isSafe;
+
+    enum DestroyState {
+        None,
+        BeingDestroyed,
+        Destroyed
+    };
 
     public GridObject(GridPosition gridPosition)
     {
@@ -37,6 +44,25 @@ public class GridObject {
         }
     }
 
+    public void SetIsBeingDestroyed()
+    {
+        destroyState = DestroyState.BeingDestroyed;
+    }
+
+    public void SetIsDestroyed()
+    {
+        destroyState = DestroyState.Destroyed;
+    }
+
+    public bool IsBeingDestroyed()
+    {
+        return destroyState == DestroyState.BeingDestroyed;
+    }
+    public bool IsDestroyed()
+    {
+        return destroyState == DestroyState.Destroyed;
+    }
+
     public override string ToString()
     {
         string gridObjectString = "";
@@ -48,17 +74,8 @@ public class GridObject {
         return $"{gridPosition.ToString()}\n{gridObjectString}";
     }
 
-    public bool GetIsDestroyed()
-    {
-        return isDestroyed;
-    }
 
-    public void SetIsDestroyed(bool isDestroyed)
-    {
-        this.isDestroyed = isDestroyed;
-    }
-
-    public bool GetIsSafe()
+    public bool IsSafe()
     {
         return isSafe;
     }

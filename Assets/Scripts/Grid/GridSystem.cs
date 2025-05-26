@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 public class GridSystem {
@@ -103,13 +104,13 @@ public class GridSystem {
     {
         GridObject gridObject = GetGridObject(gridPosition);
         gridObject.DestroyGridItems();
-        gridObject.SetIsDestroyed(true);
+        gridObject.SetIsDestroyed();
     }
 
     public bool IsGridPositionDestroyed(GridPosition gridPosition)
     {
         GridObject gridObject = GetGridObject(gridPosition);
-        return gridObject.GetIsDestroyed();
+        return gridObject.IsDestroyed();
     }
     public Direction GetDirectionTowardsGridPosition(GridPosition fromPosition, GridPosition toPosition)
     {
@@ -153,6 +154,22 @@ public class GridSystem {
             Debug.LogError("gridDebugObjectsParent hasn't been created");
         }
         gridDebugObjectsParent.SetActive(!gridDebugObjectsParent.activeSelf);
+    }
+
+    public List<GridPosition> GetNotDestroyedPositions()
+    {
+        List<GridPosition> availableGridPositions = new List<GridPosition>();
+
+        for (int x = 0; x < width; x++)
+        {
+            for (int z = 0; z < height; z++)
+            {
+                GridObject gridObject = gridObjectArray[x, z];
+                if (gridObject.IsBeingDestroyed() || gridObject.IsDestroyed()) continue;
+                availableGridPositions.Add(new GridPosition(x, z));
+            }
+        }
+        return availableGridPositions;
     }
 
 }
