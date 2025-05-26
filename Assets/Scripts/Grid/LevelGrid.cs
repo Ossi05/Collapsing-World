@@ -97,7 +97,11 @@ public class LevelGrid : MonoBehaviour {
             ReplaceSafeGridPositionsList(newSafeGridPositionsList);
             return;
         }
-
+        if (maxLength <= 0)
+        {
+            ReplaceSafeGridPositionsList(newSafeGridPositionsList);
+            return;
+        }
         gridSystem.GetGridObject(startPosition).SetIsSafe(true);
         newSafeGridPositionsList.Add(startPosition);
 
@@ -108,50 +112,52 @@ public class LevelGrid : MonoBehaviour {
         new(1, 0), new(-1, 0)
         };
 
-        Dictionary<GridPosition, GridPosition?> parentMap = new();
+        Dictionary<GridPosition, GridPosition?> parentMap = new(); // To track direction and avoid line repetition
         parentMap[startPosition] = null;
 
         int steps = 0;
         var rnd = new System.Random();
 
+        int noGrowthCounter = 0; // Track if any new positions were added
+
         int availablePositions = gridSystem.GetNotDestroyedPositions().Count;
         int effectiveMaxLength = Mathf.Min(maxLength, availablePositions);
 
-        int maxLoopIterations = 10000;
+        int maxLoopIterations = 7000; // just as a failsafe
         int loopCounter = 0;
+        int maxTries = 5000;
+        int tries = 0;
 
-        bool constraintsRelaxed = false;
-
-        while (steps < effectiveMaxLength && frontier.Count > 0 && loopCounter < maxLoopIterations)
+        while (maxLength >= newSafeGridPositionsList.Count || steps < effectiveMaxLength && frontier.Count > 0)
         {
             loopCounter++;
+            tries++;
+            bool removeContrains = tries > maxTries;
 
+            // Check if max loop iterations reached - failsafe to prevent infinite loops
             if (loopCounter >= maxLoopIterations)
             {
-                Debug.LogError("GenerateSafePath terminated due to max loop iterations. Potential logic issue.");
-                break;
+                Debug.Log("GenerateSafePath terminated due to max loop iterations. Potential logic issue.");
+                break;  // <-- Loop termination point due to maxLoopIterations
             }
 
             frontier = frontier.OrderBy(_ => rnd.Next()).ToList();
             List<GridPosition> newFrontier = new List<GridPosition>();
             int activeFrontierCount = Mathf.CeilToInt(frontier.Count * 0.7f);
             activeFrontierCount = Mathf.Clamp(activeFrontierCount, 0, frontier.Count);
-
-            int positionsAddedThisLoop = 0;
-
-            for (int i = 0; i < activeFrontierCount && steps < effectiveMaxLength; i++)
+            for (int i = 0; i < activeFrontierCount && steps < maxLength; i++)
             {
                 GridPosition origin = frontier[i];
                 GridPosition? parent = parentMap.ContainsKey(origin) ? parentMap[origin] : null;
 
-                int baseBranches = (steps < effectiveMaxLength * 0.3f) ? 3 : 2;
+                int baseBranches = (steps < maxLength * 0.3f) ? 3 : 2;
                 int branches = rnd.Next(2, baseBranches + 2);
                 GridPosition[] dirs = directions.OrderBy(_ => rnd.Next()).ToArray();
                 int b = 0;
 
                 foreach (GridPosition dir in dirs)
                 {
-                    if (b >= branches || steps >= effectiveMaxLength)
+                    if (b >= branches || steps >= maxLength)
                         break;
 
                     GridPosition next = new GridPosition(origin.x + dir.x, origin.z + dir.z);
@@ -163,31 +169,30 @@ public class LevelGrid : MonoBehaviour {
                     if (gridObject.IsDestroyed() || gridObject.IsBeingDestroyed())
                         continue;
 
-                    if (!constraintsRelaxed && parent.HasValue)
+                    // Reduce straight-line repetition
+                    if (!removeContrains && parent.HasValue)
                     {
                         GridPosition prevDir = new GridPosition(origin.x - parent.Value.x, origin.z - parent.Value.z);
                         if (prevDir.x == dir.x && prevDir.z == dir.z && rnd.NextDouble() < 0.6)
                             continue;
                     }
 
-                    if (!constraintsRelaxed)
-                    {
-                        double skipChance = steps < effectiveMaxLength * 0.2f ? 0.05 : Mathf.Lerp(0.05f, 0.35f, steps / (float)effectiveMaxLength);
-                        if (rnd.NextDouble() < skipChance)
-                            continue;
+                    double skipChance = steps < maxLength * 0.2f ? 0.05 : Mathf.Lerp(0.05f, 0.35f, steps / (float)maxLength);
+                    if (!removeContrains && rnd.NextDouble() < skipChance)
+                        continue;
 
-                        int adjacentSafeCount = 0;
-                        foreach (GridPosition d2 in directions)
-                        {
-                            GridPosition neighbor = new GridPosition(next.x + d2.x, next.z + d2.z);
-                            if (newSafeGridPositionsList.Contains(neighbor))
-                                adjacentSafeCount++;
-                        }
-                        if (steps < effectiveMaxLength * 0.3f && adjacentSafeCount > 2)
-                            continue;
-                        else if (adjacentSafeCount > 1)
-                            continue;
+                    // Relax adjacency check early on
+                    int adjacentSafeCount = 0;
+                    foreach (GridPosition d2 in directions)
+                    {
+                        GridPosition neighbor = new GridPosition(next.x + d2.x, next.z + d2.z);
+                        if (newSafeGridPositionsList.Contains(neighbor))
+                            adjacentSafeCount++;
                     }
+                    if (!removeContrains && steps < maxLength * 0.3f && adjacentSafeCount > 2)
+                        continue;
+                    else if (!removeContrains && adjacentSafeCount > 1)
+                        continue;
 
                     newSafeGridPositionsList.Add(next);
                     newFrontier.Add(next);
@@ -195,29 +200,66 @@ public class LevelGrid : MonoBehaviour {
                     parentMap[next] = origin;
                     steps++;
                     b++;
-                    positionsAddedThisLoop++;
                 }
             }
 
-            if (positionsAddedThisLoop == 0)
+            // Fallback if no growth this round
+            if (newFrontier.Count == 0 && steps < maxLength)
             {
-                if (!constraintsRelaxed)
+                GridPosition? backup = newSafeGridPositionsList
+                    .OrderBy(_ => rnd.Next())
+                    .FirstOrDefault(p => !frontier.Contains(p));
+
+                if (backup.HasValue &&
+                    IsValidGridPosition(backup.Value) &&
+                    !frontier.Contains(backup.Value))
                 {
-                    Debug.Log("Constraints too strict — relaxing constraints to prevent infinite loop.");
-                    constraintsRelaxed = true;
+                    frontier.Add(backup.Value);
                 }
-                else
+
+                noGrowthCounter++;
+                if (noGrowthCounter >= 3)
                 {
-                    Debug.Log("Path generation halted: no more positions could be added even with relaxed constraints.");
-                    break;
+                    // Force expansion if no progress for 3 iterations
+                    var forced = newSafeGridPositionsList
+                        .OrderBy(_ => rnd.Next())
+                        .Take(2)
+                        .Where(p => !frontier.Contains(p))
+                        .ToList();
+
+                    frontier.AddRange(forced);
+                    noGrowthCounter = 0;
                 }
             }
+            else
+            {
+                noGrowthCounter = 0;
+            }
 
-            frontier = newFrontier;
+            int maxTake = newFrontier.Count / 2 + 2;
+            if (maxTake < 1)
+            {
+                maxTake = 1;  // Ensure at least 1
+            }
+
+            int takeCount = 1;
+            if (maxTake > 1)
+            {
+                takeCount = rnd.Next(1, maxTake);
+            }
+
+            List<GridPosition> carry = frontier
+                .Skip(activeFrontierCount)
+                .OrderBy(_ => rnd.Next())
+                .Take(rnd.Next(1, newFrontier.Count / 2 + 2))
+                .ToList();
+
+            frontier = newFrontier.Concat(carry).Distinct().ToList();
         }
 
         ReplaceSafeGridPositionsList(newSafeGridPositionsList);
     }
+
 
 
     void ReplaceSafeGridPositionsList(List<GridPosition> newSafeGridPositionsList)
@@ -229,13 +271,12 @@ public class LevelGrid : MonoBehaviour {
             foreach (GridPosition gridPosition in oldSafePositions)
             {
                 GridObject gridObject = gridSystem.GetGridObject(gridPosition);
-                if (!newSafeGridPositionsList.Contains(gridPosition))
+                if (safeGridPositionsList.Count == 0 || !newSafeGridPositionsList.Contains(gridPosition))
                 {
                     gridObject.SetIsSafe(false);
                 }
             }
         }
-
         safeGridPositionsList = newSafeGridPositionsList;
     }
 
@@ -286,14 +327,16 @@ public class LevelGrid : MonoBehaviour {
         int newSafePathMaxLength = Mathf.RoundToInt(safeGridPositionsList.Count / 2);
         int availablePositions = gridSystem.GetNotDestroyedPositions().Count;
 
-        if (newSafePathMaxLength >= availablePositions && newSafePathMaxLength > minSafePathToDestroyAll)
+        if (newSafePathMaxLength <= availablePositions && newSafePathMaxLength > minSafePathToDestroyAll)
         {
+            Debug.Log("STILL DESTROYABLES");
             GenerateSafePath(Player.Instance.GetGridPosition(), newSafePathMaxLength);
         }
         else
         {
+            Debug.Log("MIN SAFE PATH TO DESTROY ALL");
             destroyAllPositions = true;
-            GenerateSafePath(Player.Instance.GetGridPosition(), availablePositions);
+            GenerateSafePath(Player.Instance.GetGridPosition(), Mathf.RoundToInt(availablePositions / 2));
         }
 
         List<GridPosition> newDestroyableGridPositions = GetDestroyableGridPositions();
