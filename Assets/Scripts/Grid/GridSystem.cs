@@ -90,10 +90,6 @@ public class GridSystem {
 
     public bool IsValidGridPosition(GridPosition gridPosition)
     {
-        bool gg = gridPosition.x >= 0 &&
-            gridPosition.z >= 0 &&
-            gridPosition.x < width &&
-            gridPosition.z < height;
         return gridPosition.x >= 0 &&
             gridPosition.z >= 0 &&
             gridPosition.x < width &&
